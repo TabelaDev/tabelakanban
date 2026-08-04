@@ -9,7 +9,7 @@ arquivo; edita no seu `$EDITOR` e o git cuida do resto.
 [![Go Version](https://img.shields.io/github/go-mod/go-version/ianptkcs/tabelakanban?style=flat-square&logo=go&logoColor=white&color=00ADD8)](go.mod)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square)](LICENSE)
 [![Built with Bubble Tea](https://img.shields.io/badge/built%20with-Bubble%20Tea-ff69b4?style=flat-square)](https://github.com/charmbracelet/bubbletea)
-[![Powered by tabelatuiui](https://img.shields.io/badge/theme-tabelatuiui-d6b4f7?style=flat-square)](https://github.com/ianptkcs/tabelatuiui)
+[![Powered by tabelatuiui](https://img.shields.io/badge/theme-tabelatuiui-d6b4f7?style=flat-square)](https://github.com/TabelaDev/tabelatuiui)
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/ianptkcs)
 
 </div>
@@ -60,7 +60,7 @@ go install github.com/ianptkcs/tabelakanban@latest
 Ou compilando a partir do source:
 
 ```bash
-git clone https://github.com/ianptkcs/tabelakanban.git
+git clone https://github.com/TabelaDev/tabelakanban.git
 cd tabelakanban
 go build -o tabelakanban .
 ```
@@ -126,7 +126,7 @@ comportamento é o de sempre: varre só `TABELAKANBAN_ROOT` (ou `~/kanban`).
   for o padrão.
 
 O tema e o chrome compartilhado (header/footer/panels, padding ANSI-aware,
-helpers de IPC) vêm da [`tabelatuiui`](https://github.com/ianptkcs/tabelatuiui).
+helpers de IPC) vêm da [`tabelatuiui`](https://github.com/TabelaDev/tabelatuiui).
 
 ## Licença
 
