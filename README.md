@@ -37,8 +37,8 @@ disco É o board:
 
 Board = pasta, coluna = subpasta, card = arquivo `.md`. Nada de metadado
 separado: mover um card é `mv` de arquivo (preservável em git), o título é o
-nome do arquivo e o corpo é o conteúdo. Abre com `o`/`enter` no seu
-`$EDITOR` e o card é o markdown que você já escreve todo dia.
+nome do arquivo e o corpo é o conteúdo. Abre com `enter` no seu `$EDITOR` e o
+card é o markdown que você já escreve todo dia.
 
 ![screenshot](screenshot.png)
 
@@ -66,6 +66,12 @@ cd tabelakanban
 go build -o tabelakanban .
 ```
 
+Pra usar como comando global (precisa que `~/.local/bin` esteja no seu `PATH`):
+
+```bash
+go build -o ~/.local/bin/tabelakanban .
+```
+
 ## Uso
 
 ```
@@ -75,13 +81,23 @@ tabelakanban list    # dump em texto plano, sem TTY — útil pra scriptar
 
 Dentro da TUI:
 
-- `h`/`l` (ou `←`/`→`) navegam entre colunas; `H`/`L` movem o card
-  selecionado para a coluna ao lado.
-- `j`/`k` (ou `↑`/`↓`) navegam entre cards da coluna focada.
+- `h`/`l` navegam entre colunas — na primeira coluna, `h` entra na sidebar de
+  boards, onde `j`/`k` trocam de board e `enter`/`l` voltam às colunas.
+- `j`/`k` navegam entre cards da coluna focada.
+- `H`/`L` movem o card selecionado para a coluna ao lado.
+- `ctrl+h`/`ctrl+l` reordenam a coluna focada (mover a coluna em si).
 - `n` cria card, `N` cria coluna, `B` cria board (novo board na primeira
-  raiz), `r` renomeia o card selecionado, `d` apaga (com confirmação).
-- `o`/`enter` abre o card no `$EDITOR` (padrão `nvim`).
-- `b` abre o seletor de boards, `ctrl+r` reescaneia, `q` sai.
+  raiz), `r` renomeia o card selecionado, `R` renomeia a coluna, `d` apaga o
+  card e `D` apaga a coluna (todos com confirmação/prompt modal).
+- `t` define/limpa o due date do card selecionado (formato `DD/MM`, vazio
+  limpa). O due fica no front-matter do `.md` e aparece no rodapé do card (em
+  vermelho quando vencido); criar card já deixa você preencher o due.
+- `o` abre/fecha uma coluna lateral com o preview do markdown do card
+  selecionado; `enter` abre o card no `$EDITOR` (padrão `nvim`).
+- `g` abre a página de log de atividades (o que foi feito); `q`/`esc`/`h`/`l`
+  fecha.
+- `ctrl+e` colapsa/expande a sidebar de boards (visível por padrão),
+  `ctrl+r` reescaneia, `q` sai.
 
 Cards numa mesma coluna aparecem em ordem alfabética de título.
 

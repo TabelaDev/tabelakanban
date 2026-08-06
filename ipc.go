@@ -77,10 +77,84 @@ func runIPC(args []string) int {
 		return tuiui.WriteJSON(out)
 	case "boards.next":
 		return ipcBoardsNext(boards)
+	case "cards.create":
+		return ipcCardsCreate(boards, parsed.Filters)
+	case "cards.move":
+		return ipcCardsMove(boards, parsed.Filters)
 	default:
 		fmt.Fprintf(os.Stderr, "método desconhecido: %q\n", parsed.Method)
 		return 1
 	}
+}
+
+// findBoard/column resolve a board and column from ipc filters. Returns an
+// error string when the board/column doesn't exist.
+func findColumn(boards []Board, boardName, columnName string) (*Board, *Column, string) {
+	if boardName == "" {
+		return nil, nil, "filtro board= é obrigatório"
+	}
+	for i := range boards {
+		if boards[i].Name != boardName {
+			continue
+		}
+		for j := range boards[i].Columns {
+			if boards[i].Columns[j].Name == columnName {
+				return &boards[i], &boards[i].Columns[j], ""
+			}
+		}
+		return nil, nil, fmt.Sprintf("coluna %q não existe no board %q", columnName, boardName)
+	}
+	return nil, nil, fmt.Sprintf("board %q não existe", boardName)
+}
+
+// ipcCardsCreate creates a card in a board/column and prints it as JSON.
+// Filters: board=, column=, title=.
+func ipcCardsCreate(boards []Board, filters map[string]string) int {
+	_, col, ferr := findColumn(boards, filters["board"], filters["column"])
+	if ferr != "" {
+		fmt.Fprintln(os.Stderr, "erro:", ferr)
+		return 1
+	}
+	card, err := createCard(*col, filters["title"])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "erro:", err)
+		return 1
+	}
+	return tuiui.WriteJSON(cardJSON{Title: card.Title, Path: card.Path, Body: card.Body})
+}
+
+// ipcCardsMove moves a card to another column and prints it as JSON.
+// Filters: board=, title=, from= (column), to= (column).
+func ipcCardsMove(boards []Board, filters map[string]string) int {
+	b, from, ferr := findColumn(boards, filters["board"], filters["from"])
+	if ferr != "" {
+		fmt.Fprintln(os.Stderr, "erro:", ferr)
+		return 1
+	}
+	toName := filters["to"]
+	if toName == "" {
+		fmt.Fprintln(os.Stderr, "erro: filtro to= é obrigatório")
+		return 1
+	}
+	_, to, terr := findColumn([]Board{*b}, b.Name, toName)
+	if terr != "" {
+		fmt.Fprintln(os.Stderr, "erro:", terr)
+		return 1
+	}
+
+	title := filters["title"]
+	for i := range from.Cards {
+		if from.Cards[i].Title == title {
+			moved, err := moveCard(from.Cards[i], *to)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "erro:", err)
+				return 1
+			}
+			return tuiui.WriteJSON(cardJSON{Title: moved.Title, Path: moved.Path, Body: moved.Body})
+		}
+	}
+	fmt.Fprintf(os.Stderr, "erro: card %q não existe na coluna %q do board %q\n", title, from.Name, b.Name)
+	return 1
 }
 
 // ipcBoardsNext returns the single card tabelakanban itself would put first:

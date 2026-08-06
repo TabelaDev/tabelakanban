@@ -23,4 +23,5 @@ var (
 	colText     = theme.Text
 	colSubtext0 = theme.Subtext0
 	colPrimary  = theme.Primary
+	colRed      = theme.Red
 )

@@ -18,14 +18,16 @@ func dimStyle() lipgloss.Style   { return theme.Dim() }
 
 // Layout helpers come straight from the lib.
 
-func padLines(s string, width int) string { return tuiui.PadLines(s, width) }
-func wrapText(s string, width int) string { return tuiui.WrapText(s, width) }
-
-// cardStyle is the per-card block inside a column: highlighted when the
-// card is selected (inverted to primary), plain text otherwise.
-func cardStyle(selected bool) lipgloss.Style {
-	if selected {
-		return lipgloss.NewStyle().Foreground(colBase).Background(colPrimary).Bold(true)
+func padLines(s string, width int) string {
+	if width < 0 {
+		width = 0
 	}
-	return lipgloss.NewStyle().Foreground(colText).Background(colBase)
+	return tuiui.PadLines(s, width)
+}
+func wrapText(s string, width int) string { return tuiui.WrapText(s, width) }
+func padToHeight(s string, lines int) string {
+	if lines < 0 {
+		lines = 0
+	}
+	return tuiui.PadToHeight(s, lines)
 }

@@ -5,14 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v0.2.0] - 2026-08-06
 
 ### Added
 
 - Colunas agora redimensionam pra preencher a largura da tela, em vez de
   ficarem num tamanho fixo estreito.
 - Sidebar de boards como coluna à esquerda, visível por padrão e colapsável
-  com `ctrl+e` — substitui a faixa de cima e o modal de seleção.
+  com `ctrl+e` — substitui o modal de seleção.
 - Preview do markdown do card numa coluna lateral com `o`.
 - Página de log de atividades com `g`: registra card/board/colunas de origem
   e destino de cada ação, renderizada em página cheia.
@@ -20,19 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ações, que somem em ~2s.
 - `ctrl+r` agora dá retorno ("recarregado — N boards").
 - Renomear coluna (`R`), apagar coluna (`D`, com confirmação) e reordenar
-  colunas (`ctrl+shift+h/l`), via arquivo `.order` do board.
-- Suporte ao protocolo de teclado do kitty (flag de disambiguation), o que
-  faz `ctrl+shift+h/l` funcionar de verdade em terminais compatíveis.
+  colunas (`ctrl+h`/`ctrl+l`), via arquivo `.order` do board.
+- Due date nos cards: `t` define/limpa (formato `DD/MM`), guardado no
+  front-matter (`due: YYYY-MM-DD`) e exibido no rodapé do card (vermelho
+  quando vencido).
+- Prompts de input viraram formulários estilo djobs (`huh`): campos com
+  label, placeholder e navegação — criar card já pergunta o due.
 
 ### Changed
 
 - Navegação hjkl: `h`/`l` navegam colunas (e a sidebar), `j`/`k` cards,
   `H`/`L` movem card.
-- Prompt de novo card/coluna/board virou um modal centralizado, em vez de
-  uma linha que empurrava o layout.
-- Header passou a usar o background do accent (vem da tabelatuiui) e o frame
-  inteiro ganhou margem das bordas do terminal; padding interno do
-  header/footer foi reduzido (também na tabelatuiui).
+- Header/footer com background do accent e padding interno, colados nas
+  bordas do terminal (sem margem externa).
 - Cards renderizados em blocos com separador; o preview embaixo do título
   pula o `# H1` do arquivo (que repetia o título); a seleção agora é um
   retângulo accent completo (pad antes de aplicar o style).
@@ -45,6 +45,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Notificação não desrenderiza mais a borda das colunas.
 - Com o preview aberto, a sidebar e o header não encolhem mais nem saem da
   tela (o painel de preview tinha 4 linhas a mais que as colunas).
-- Input não funcionava com o reader de CSI-u: o wrapper agora implementa
-  `term.File` (`Fd`), então o bubbletea ainda ativa o raw mode (sem isso o
-  terminal ecoava as teclas e nada respondia).
+- Modal de input não estourava mais a largura do terminal (prompt duplicado
+  removido).

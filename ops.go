@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // sanitizeTitle turns a user-typed title into a safe filename stem: trimmed,
@@ -63,6 +64,17 @@ func moveCard(card Card, toColumn Column) (Card, error) {
 	return Card{Title: title, Path: path, Body: card.Body}, nil
 }
 
+// setCardDue writes (or clears, when due is zero) the card's due date into
+// its YAML front matter, preserving the body.
+func setCardDue(card Card, due time.Time) (Card, error) {
+	content := renderFrontMatter(due) + card.Body
+	if err := os.WriteFile(card.Path, []byte(content), 0o644); err != nil {
+		return Card{}, err
+	}
+	card.Due = due
+	return card, nil
+}
+
 func deleteCard(card Card) error {
 	return os.Remove(card.Path)
 }
@@ -73,7 +85,96 @@ func createColumn(board Board, name string) error {
 	if name == "" {
 		return fmt.Errorf("nome vazio")
 	}
-	return os.Mkdir(filepath.Join(board.Path, name), 0o755)
+	dir := filepath.Join(board.Path, name)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		return err
+	}
+	return appendColumnOrder(board, name)
+}
+
+// appendColumnOrder keeps an existing .order file in sync when a column is
+// created. Boards without a .order file stay alphabetical.
+func appendColumnOrder(board Board, name string) error {
+	orderPath := filepath.Join(board.Path, ".order")
+	if _, err := os.Stat(orderPath); os.IsNotExist(err) {
+		return nil
+	}
+	f, err := os.OpenFile(orderPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(name + "\n")
+	return err
+}
+
+// renameColumn renames the column directory, keeping its cards.
+func renameColumn(column Column, newName string) (Column, error) {
+	newName = sanitizeTitle(newName)
+	if newName == "" {
+		return Column{}, fmt.Errorf("nome vazio")
+	}
+	newPath := filepath.Join(filepath.Dir(column.Path), newName)
+	if newPath == column.Path {
+		return column, nil
+	}
+	if _, err := os.Stat(newPath); err == nil {
+		return Column{}, fmt.Errorf("coluna %q já existe", newName)
+	}
+	if err := os.Rename(column.Path, newPath); err != nil {
+		return Column{}, err
+	}
+	if err := replaceColumnOrder(filepath.Dir(column.Path), column.Name, newName); err != nil {
+		return Column{}, err
+	}
+	column.Name = newName
+	column.Path = newPath
+	return column, nil
+}
+
+// replaceColumnOrder swaps oldName for newName in the board's .order file
+// (no-op when there's no .order file).
+func replaceColumnOrder(boardDir, oldName, newName string) error {
+	orderPath := filepath.Join(boardDir, ".order")
+	data, err := os.ReadFile(orderPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		if strings.TrimSpace(line) == oldName {
+			lines[i] = newName
+		}
+	}
+	return os.WriteFile(orderPath, []byte(strings.Join(lines, "\n")), 0o644)
+}
+
+// moveColumn reorders a board's columns so the column at `from` lands at
+// `to`, by materializing the order in the board's .order file (column
+// directories are name-ordered by default, so an explicit order file is what
+// makes "moving a column" meaningful without renaming it).
+func moveColumn(board Board, from, to int) error {
+	n := len(board.Columns)
+	if n == 0 || from < 0 || from >= n || to < 0 || to >= n || from == to {
+		return nil
+	}
+	order := make([]string, n)
+	for i, c := range board.Columns {
+		order[i] = c.Name
+	}
+	name := order[from]
+	order = append(order[:from], order[from+1:]...)
+	order = append(order[:to], append([]string{name}, order[to:]...)...)
+	orderPath := filepath.Join(board.Path, ".order")
+	return os.WriteFile(orderPath, []byte(strings.Join(order, "\n")+"\n"), 0o644)
+}
+
+// deleteColumn removes the column directory and everything in it.
+func deleteColumn(column Column) error {
+	return os.RemoveAll(column.Path)
 }
 
 // createBoard makes a new board directory under the first configured root.

@@ -6,14 +6,17 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Card is one .md file inside a column directory. Its Title is the filename
-// without the .md suffix; Body is the raw file contents.
+// without the .md suffix; Body is the file contents minus the YAML front
+// matter; Due is the front-matter `due:` date (zero when unset).
 type Card struct {
 	Title string
 	Path  string
 	Body  string
+	Due   time.Time
 }
 
 // Column is a subdirectory of a board. Its name is the column header; each
@@ -64,6 +67,8 @@ func scanBoard(dir string) (Board, error) {
 	if err != nil {
 		return board, err
 	}
+	order := columnOrderFromFile(dir)
+	colByName := make(map[string]Column)
 	for _, d := range dirs {
 		if !d.IsDir() || strings.HasPrefix(d.Name(), ".") {
 			continue
@@ -78,16 +83,95 @@ func scanBoard(dir string) (Board, error) {
 				continue
 			}
 			cardPath := filepath.Join(column.Path, f.Name())
-			body, _ := os.ReadFile(cardPath)
+			raw, _ := os.ReadFile(cardPath)
+			due, body := parseFrontMatter(string(raw))
 			column.Cards = append(column.Cards, Card{
 				Title: strings.TrimSuffix(f.Name(), ".md"),
 				Path:  cardPath,
-				Body:  string(body),
+				Body:  body,
+				Due:   due,
 			})
 		}
 		sort.Slice(column.Cards, func(i, j int) bool { return column.Cards[i].Title < column.Cards[j].Title })
-		board.Columns = append(board.Columns, column)
+		colByName[d.Name()] = column
 	}
-	sort.Slice(board.Columns, func(i, j int) bool { return board.Columns[i].Name < board.Columns[j].Name })
+
+	// Columns listed in .order come first (in that order); anything not in
+	// the file follows alphabetically — which is also the full fallback when
+	// there's no .order file, keeping old boards unchanged.
+	seen := make(map[string]bool, len(colByName))
+	var columns []Column
+	for _, name := range order {
+		if col, ok := colByName[name]; ok {
+			columns = append(columns, col)
+			seen[name] = true
+		}
+	}
+	var rest []string
+	for name := range colByName {
+		if !seen[name] {
+			rest = append(rest, name)
+		}
+	}
+	sort.Strings(rest)
+	for _, name := range rest {
+		columns = append(columns, colByName[name])
+	}
+	board.Columns = columns
 	return board, nil
+}
+
+// columnOrderFromFile reads the board's .order file (one column name per
+// line; blank lines and # comments ignored). Missing file means nil, i.e.
+// alphabetical order.
+func columnOrderFromFile(dir string) []string {
+	data, err := os.ReadFile(filepath.Join(dir, ".order"))
+	if err != nil {
+		return nil
+	}
+	var order []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			order = append(order, line)
+		}
+	}
+	return order
+}
+
+// parseFrontMatter extracts the `due:` date from a card's leading YAML block
+// (---\ndue: YYYY-MM-DD\n---) and returns the body with that block stripped.
+// A missing/malformed block yields a zero due and the body unchanged.
+func parseFrontMatter(raw string) (time.Time, string) {
+	if !strings.HasPrefix(raw, "---\n") {
+		return time.Time{}, raw
+	}
+	end := strings.Index(raw, "\n---")
+	if end < 0 {
+		return time.Time{}, raw
+	}
+	block := raw[4:end]
+	body := raw[end+4:]
+	body = strings.TrimPrefix(body, "\n")
+
+	var due time.Time
+	for _, line := range strings.Split(block, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "due:") {
+			continue
+		}
+		if d, err := time.Parse("2006-01-02", strings.TrimSpace(strings.TrimPrefix(line, "due:"))); err == nil {
+			due = d
+		}
+	}
+	return due, body
+}
+
+// renderFrontMatter returns a card's YAML block for its due date, or "" when
+// there's no due date.
+func renderFrontMatter(due time.Time) string {
+	if due.IsZero() {
+		return ""
+	}
+	return "---\ndue: " + due.Format("2006-01-02") + "\n---\n"
 }
