@@ -145,6 +145,31 @@ comportamento é o de sempre: varre só `TABELAKANBAN_ROOT` (ou `~/kanban`).
 O tema e o chrome compartilhado (header/footer/panels, padding ANSI-aware,
 helpers de IPC) vêm da [`tabelatuiui`](https://github.com/TabelaDev/tabelatuiui).
 
+## Desenvolvimento
+
+```bash
+go test ./...
+```
+
+## Changelog
+
+Veja [CHANGELOG.md](CHANGELOG.md) para o histórico de versões.
+
+## Apoie o projeto
+
+- **Global**: [ko-fi.com/ianptkcs](https://ko-fi.com/ianptkcs)
+- **Brasil (Pix)**: escaneie o QR abaixo ou copie o código
+
+  <img src="pix-qr.png" alt="Pix QR" width="200" />
+
+  <details><summary>Código Pix (copiar)</summary>
+
+  ```
+  00020126580014BR.GOV.BCB.PIX01365ad933b0-dcdc-4525-a736-0759902aeec65204000053039865802BR5925Ian Patrick da Costa Soar6009SAO PAULO62140510tQA85x6Dov63041FB6
+  ```
+
+  </details>
+
 ## Licença
 
 [GNU AGPL-3.0](LICENSE) — livre e open source. Se você rodar uma versão
