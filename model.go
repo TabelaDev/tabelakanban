@@ -7,9 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/ianptkcs/tabelatuiui"
 )
 
 // mode tracks which interaction is on top of the kanban: normal board
@@ -87,7 +89,7 @@ func (e logEntry) summary() string {
 
 // rich is the multi-line version shown on the logs page.
 func (e logEntry) rich() []string {
-	head := dimStyle().Render(e.at.Format("15:04:05")) + "  " + e.summary()
+	head := theme.Dim().Render(e.at.Format("15:04:05")) + "  " + e.summary()
 	switch e.kind {
 	case "erro", "aviso":
 		return []string{head}
@@ -135,11 +137,20 @@ type appModel struct {
 	notice         string
 	noticeGen      int
 	log            []logEntry
+
+	// helpModal is the "?" overlay listing every keybinding — declared here
+	// (not per-update) so its scroll position survives toggles.
+	helpModal *tuiui.HelpModal
 }
 
 func newModel() appModel {
-	m := appModel{}
-	m.sidebar = true
+	m := appModel{
+		sidebar: true,
+		helpModal: tuiui.NewHelpModal(tuiui.HelpSection{
+			Title:    "Atalhos",
+			Bindings: appKeymap,
+		}),
+	}
 	m.rescan(false)
 	return m
 }
@@ -264,6 +275,7 @@ func (m appModel) Init() tea.Cmd { return nil }
 func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = sizeMsg.Width, sizeMsg.Height
+		m.helpModal.SetSize(sizeMsg.Width, sizeMsg.Height)
 		m.reclamp()
 		return m, nil
 	}
@@ -275,6 +287,12 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if _, ok := msg.(editorFinishedMsg); ok {
 		return m, m.rescan(false)
+	}
+
+	// The help modal swallows all keys while it's open — the app must not
+	// act on them (so "q" closes the modal instead of quitting, etc.).
+	if m.helpModal.Update(msg) {
+		return m, nil
 	}
 
 	switch m.mode {
@@ -294,60 +312,63 @@ func (m *appModel) updateBoard(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	switch keyMsg.String() {
-	case "q", "ctrl+c":
+	switch {
+	case key.Matches(keyMsg, keyQuit):
 		return m, tea.Quit
-	case "ctrl+r":
+	case key.Matches(keyMsg, keyHelp):
+		m.helpModal.Toggle()
+		return m, nil
+	case key.Matches(keyMsg, keyRefresh):
 		return m, m.rescan(true)
-	case "ctrl+e":
+	case key.Matches(keyMsg, keySidebar):
 		m.sidebar = !m.sidebar
 		if !m.sidebar {
 			m.sidebarFocused = false
 		}
 		return m, nil
-	case "g":
+	case key.Matches(keyMsg, keyLogs):
 		m.mode = modeLogs
 		return m, nil
-	case "n":
+	case key.Matches(keyMsg, keyNewCard):
 		return m.startInput(inputNewCard, "")
-	case "N":
+	case key.Matches(keyMsg, keyNewColumn):
 		return m.startInput(inputNewColumn, "")
-	case "B":
+	case key.Matches(keyMsg, keyNewBoard):
 		return m.startInput(inputNewBoard, "")
-	case "r":
+	case key.Matches(keyMsg, keyRenameCard):
 		if card := m.currentCard(); card != nil && !m.sidebarFocused {
 			return m.startInput(inputRenameCard, card.Title)
 		}
-	case "R":
+	case key.Matches(keyMsg, keyRenameCol):
 		if col := m.currentColumn(); col != nil && !m.sidebarFocused {
 			return m.startInput(inputRenameColumn, col.Name)
 		}
-	case "t":
+	case key.Matches(keyMsg, keyDue):
 		if card := m.currentCard(); card != nil && !m.sidebarFocused {
 			return m.startInput(inputDue, dueDDMM(card.Due))
 		}
-	case "d":
+	case key.Matches(keyMsg, keyDelCard):
 		if card := m.currentCard(); card != nil && !m.sidebarFocused {
 			m.confirmCard = *card
 			m.confirmCol = nil
 			m.mode = modeConfirm
 		}
-	case "D":
+	case key.Matches(keyMsg, keyDelCol):
 		if col := m.currentColumn(); col != nil && !m.sidebarFocused {
 			m.confirmCol = col
 			m.mode = modeConfirm
 		}
-	case "o":
+	case key.Matches(keyMsg, keyPreview):
 		if b := m.currentBoard(); b != nil {
 			m.preview = !m.preview
 		}
-	case "enter":
+	case key.Matches(keyMsg, keyOpen):
 		if m.sidebarFocused {
 			m.sidebarFocused = false
 		} else if card := m.currentCard(); card != nil {
 			return m, openEditor(card.Path)
 		}
-	case "h", "left":
+	case key.Matches(keyMsg, keyMoveColL):
 		if m.sidebarFocused {
 			// already on the sidebar
 		} else if m.colIdx == 0 && m.sidebar {
@@ -357,22 +378,22 @@ func (m *appModel) updateBoard(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.colIdx--
 			m.cardIdx = 0
 		}
-	case "l", "right":
+	case key.Matches(keyMsg, keyMoveColR):
 		if m.sidebarFocused {
 			m.sidebarFocused = false
 		} else if c := m.currentBoard(); c != nil && m.colIdx < len(c.Columns)-1 {
 			m.colIdx++
 			m.cardIdx = 0
 		}
-	case "H":
+	case key.Matches(keyMsg, keyShiftCardL):
 		return m, m.moveCardBetween(-1)
-	case "L":
+	case key.Matches(keyMsg, keyShiftCardR):
 		return m, m.moveCardBetween(1)
-	case "ctrl+h":
+	case key.Matches(keyMsg, keyReorderL):
 		return m, m.moveColumnBetween(-1)
-	case "ctrl+l":
+	case key.Matches(keyMsg, keyReorderR):
 		return m, m.moveColumnBetween(1)
-	case "j", "down":
+	case key.Matches(keyMsg, keyCardDown):
 		if m.sidebarFocused {
 			if m.boardIdx < len(m.boards)-1 {
 				m.boardIdx++
@@ -381,7 +402,7 @@ func (m *appModel) updateBoard(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if c := m.currentColumn(); c != nil && m.cardIdx < len(c.Cards)-1 {
 			m.cardIdx++
 		}
-	case "k", "up":
+	case key.Matches(keyMsg, keyCardUp):
 		if m.sidebarFocused {
 			if m.boardIdx > 0 {
 				m.boardIdx--
@@ -796,7 +817,7 @@ func (m appModel) View() string {
 		innerH = 1
 	}
 
-	header := headerStyle(innerW).Render("TabelaKanban — " + m.currentBoardName())
+	header := theme.Header(innerW).Render("TabelaKanban — " + m.currentBoardName())
 
 	bodyHeight := innerH - headerLines - noticeLines - footerLines
 	if bodyHeight < 1 {
@@ -805,20 +826,23 @@ func (m appModel) View() string {
 
 	body := m.renderBoard(bodyHeight, innerW)
 	notice := m.renderNotice(innerW)
-	footer := footerStyle(innerW).Render(m.footerText())
+	footer := tuiui.NewFooter(appKeymap...).Render(innerW, theme)
 
 	out := lipgloss.JoinVertical(lipgloss.Left, header, body, notice, footer)
+	if m.helpModal.Visible() {
+		return m.helpModal.View(theme)
+	}
 	return out
 }
 
 func (m appModel) renderBoard(bodyHeight, innerW int) string {
 	b := m.currentBoard()
 	if b == nil {
-		content := titleStyle().Render("TabelaKanban") + "\n\n" + dimStyle().Render("nenhum board ainda — pressione B para criar um")
+		content := theme.Title().Render("TabelaKanban") + "\n\n" + theme.Dim().Render("nenhum board ainda — pressione B para criar um")
 		return m.renderEmptyState(bodyHeight, innerW, content)
 	}
 	if len(b.Columns) == 0 {
-		content := titleStyle().Render(b.Name) + "\n\n" + dimStyle().Render("sem colunas — pressione N para criar uma")
+		content := theme.Title().Render(b.Name) + "\n\n" + theme.Dim().Render("sem colunas — pressione N para criar uma")
 		return m.renderEmptyState(bodyHeight, innerW, content)
 	}
 
@@ -881,10 +905,10 @@ func (m appModel) renderEmptyState(bodyHeight, innerW int, content string) strin
 		content = padToHeight(content, bodyHeight)
 		left := m.renderSidebar(bodyHeight, sidebarInnerWidth)
 		return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", panelGap),
-			panelStyle(false).Render(padLines(content, innerW-4-sidebarTotal-panelGap)))
+			theme.Panel(false).Render(padLines(content, innerW-4-sidebarTotal-panelGap)))
 	}
 	content = padToHeight(content, bodyHeight)
-	return panelStyle(false).Render(padLines(content, innerW-4))
+	return theme.Panel(false).Render(padLines(content, innerW-4))
 }
 
 func (m appModel) renderColumn(col Column, focused bool, innerW, maxCards, contentHeight int) string {
@@ -909,7 +933,7 @@ func (m appModel) renderColumn(col Column, focused bool, innerW, maxCards, conte
 	// Pad the leftover partial card-row so the panel's bottom border lands
 	// exactly on the body's last line.
 	content = padToHeight(content, contentHeight)
-	return panelStyle(focused).Render(padLines(titleStyle().Render(title)+"\n\n"+content, innerW))
+	return theme.Panel(focused).Render(padLines(theme.Title().Render(title)+"\n\n"+content, innerW))
 }
 
 // renderCardBlock draws one 3-line card: title, preview, spacer. The spacer
@@ -977,7 +1001,7 @@ func (m appModel) renderSidebar(height, innerWidth int) string {
 	title := "boards"
 	var lines []string
 	if len(m.boards) == 0 {
-		lines = append(lines, dimStyle().Render(padLines("nenhum board", innerWidth)))
+		lines = append(lines, theme.Dim().Render(padLines("nenhum board", innerWidth)))
 	}
 	for i, b := range m.boards {
 		if i == m.boardIdx {
@@ -990,7 +1014,7 @@ func (m appModel) renderSidebar(height, innerWidth int) string {
 	}
 	content := strings.Join(lines, "\n")
 	content = padToHeight(content, height-colBoxOverhead)
-	return panelStyle(m.sidebarFocused).Render(padLines(titleStyle().Render(title)+"\n\n"+content, innerWidth))
+	return theme.Panel(m.sidebarFocused).Render(padLines(theme.Title().Render(title)+"\n\n"+content, innerWidth))
 }
 
 // renderPreview is the side panel showing the selected card's markdown
@@ -998,15 +1022,15 @@ func (m appModel) renderSidebar(height, innerWidth int) string {
 func (m appModel) renderPreview(card *Card, width, height int) string {
 	var content string
 	if card == nil {
-		content = dimStyle().Render("sem card selecionado")
+		content = theme.Dim().Render("sem card selecionado")
 	} else {
-		content = titleStyle().Render(card.Title) + "\n\n" + wrapText(stripMarkdown(card.Body), width-4)
+		content = theme.Title().Render(card.Title) + "\n\n" + wrapText(stripMarkdown(card.Body), width-4)
 	}
 	// The preview's title lives inside the content, so only the border (2
 	// lines) is overhead — unlike columns/sidebar which add title+blank
 	// externally. Pad so the panel lands exactly on the body's last line.
 	content = padToHeight(content, height-2)
-	return panelStyle(true).Render(padLines(content, width-4))
+	return theme.Panel(true).Render(padLines(content, width-4))
 }
 
 // stripMarkdown drops the opening H1 (it duplicates the title) and leading
@@ -1068,7 +1092,7 @@ func (m appModel) renderInputModal() string {
 	if m.form != nil {
 		body = m.form.View()
 	}
-	box := theme.Modal().Render(titleStyle().Render(label) + "\n\n" + body)
+	box := theme.Modal().Render(theme.Title().Render(label) + "\n\n" + body)
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
 }
 
@@ -1082,13 +1106,13 @@ func (m appModel) renderConfirm() string {
 	}
 	var text string
 	if m.confirmCol != nil {
-		text = titleStyle().Render("apagar coluna") + "\n\n" +
-			dimStyle().Render(fmt.Sprintf("Apagar a coluna '%s'? Isso remove todos os cards dela.", m.confirmCol.Name)) + "\n\n" +
-			theme.Success().Render("y") + dimStyle().Render(" apagar · ") + theme.Error().Render("n") + dimStyle().Render(" cancelar")
+		text = theme.Title().Render("apagar coluna") + "\n\n" +
+			theme.Dim().Render(fmt.Sprintf("Apagar a coluna '%s'? Isso remove todos os cards dela.", m.confirmCol.Name)) + "\n\n" +
+			theme.Success().Render("y") + theme.Dim().Render(" apagar · ") + theme.Error().Render("n") + theme.Dim().Render(" cancelar")
 	} else {
-		text = titleStyle().Render("apagar card") + "\n\n" +
-			dimStyle().Render(fmt.Sprintf("Apagar '%s'? Isso remove o arquivo.", m.confirmCard.Title)) + "\n\n" +
-			theme.Success().Render("y") + dimStyle().Render(" apagar · ") + theme.Error().Render("n") + dimStyle().Render(" cancelar")
+		text = theme.Title().Render("apagar card") + "\n\n" +
+			theme.Dim().Render(fmt.Sprintf("Apagar '%s'? Isso remove o arquivo.", m.confirmCard.Title)) + "\n\n" +
+			theme.Success().Render("y") + theme.Dim().Render(" apagar · ") + theme.Error().Render("n") + theme.Dim().Render(" cancelar")
 	}
 	box := theme.Modal().Render(text)
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
@@ -1103,7 +1127,7 @@ func (m appModel) renderLogs() string {
 		innerH = 1
 	}
 
-	header := headerStyle(innerW).Render("TabelaKanban — log de atividades")
+	header := theme.Header(innerW).Render("TabelaKanban — log de atividades")
 
 	bodyHeight := innerH - headerLines - footerLines
 	if bodyHeight < 1 {
@@ -1115,21 +1139,14 @@ func (m appModel) renderLogs() string {
 		lines = append(lines, m.log[i].rich()...)
 	}
 	if len(lines) == 0 {
-		lines = append(lines, dimStyle().Render("nada registrado ainda"))
+		lines = append(lines, theme.Dim().Render("nada registrado ainda"))
 	}
 	content := strings.Join(lines, "\n")
 	content = padToHeight(content, bodyHeight-colBoxOverhead)
-	box := panelStyle(true).Render(padLines(titleStyle().Render("log de atividades")+"\n\n"+content, innerW-4))
+	box := theme.Panel(true).Render(padLines(theme.Title().Render("log de atividades")+"\n\n"+content, innerW-4))
 
-	footer := footerStyle(innerW).Render("g/h/q fecha")
+	footer := theme.Footer(innerW).Render("g/h/q fecha")
 	return lipgloss.JoinVertical(lipgloss.Left, header, box, footer)
-}
-
-func (m appModel) footerText() string {
-	help := "h/l coluna · j/k card · H/L mover card · ctrl+h/l mover coluna · o preview · g logs · enter editar · n/N/B criar · r/R renom. · d/D del · ctrl+e sidebar · q sair"
-	// footerStyle has 2 columns of padding each side; pad to the content
-	// width so the line never wraps.
-	return strings.TrimRight(padLines(help, m.boardAreaWidth()-4), " ")
 }
 
 type editorFinishedMsg struct{}

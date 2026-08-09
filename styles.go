@@ -1,20 +1,12 @@
 package main
 
 import (
-	"github.com/charmbracelet/lipgloss"
 	"github.com/ianptkcs/tabelatuiui"
 )
 
-// Thin wrappers over tabelatuiui's shared chrome, so the model/view code
-// keeps calling the same short helpers the other TUIs do.
-
-func headerStyle(width int) lipgloss.Style { return theme.Header(width) }
-func footerStyle(width int) lipgloss.Style { return theme.Footer(width) }
-func panelStyle(focused bool) lipgloss.Style {
-	return theme.Panel(focused)
-}
-func titleStyle() lipgloss.Style { return theme.Title() }
-func dimStyle() lipgloss.Style   { return theme.Dim() }
+// App-specific styles on top of tabelatuiui's shared chrome (called as
+// theme.Header/Footer/Panel/Title/Dim directly). Colors live in the theme
+// resolved in theme.go (Catppuccin Mocha + the DMS accent).
 
 // Layout helpers come straight from the lib.
 
