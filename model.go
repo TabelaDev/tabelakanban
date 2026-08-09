@@ -138,18 +138,21 @@ type appModel struct {
 	noticeGen      int
 	log            []logEntry
 
-	// helpModal is the "?" overlay listing every keybinding — declared here
-	// (not per-update) so its scroll position survives toggles.
-	helpModal *tuiui.HelpModal
+	// helpModal is the "?" overlay listing every keybinding; settingsModal is
+	// the "," overlay that lets the user rebind them. Both read from reg.
+	helpModal     *tuiui.HelpModal
+	settingsModal *tuiui.SettingsModal
 }
 
 func newModel() appModel {
+	_ = reg.Load()
 	m := appModel{
 		sidebar: true,
 		helpModal: tuiui.NewHelpModal(tuiui.HelpSection{
-			Title:    "Atalhos",
-			Bindings: appKeymap,
+			Title:      "Atalhos",
+			BindingsFn: reg.Bindings,
 		}),
+		settingsModal: tuiui.NewSettingsModal(reg),
 	}
 	m.rescan(false)
 	return m
@@ -276,6 +279,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = sizeMsg.Width, sizeMsg.Height
 		m.helpModal.SetSize(sizeMsg.Width, sizeMsg.Height)
+		m.settingsModal.SetSize(sizeMsg.Width, sizeMsg.Height)
 		m.reclamp()
 		return m, nil
 	}
@@ -289,8 +293,11 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.rescan(false)
 	}
 
-	// The help modal swallows all keys while it's open — the app must not
-	// act on them (so "q" closes the modal instead of quitting, etc.).
+	// The settings/help modals swallow all keys while open — the app must
+	// not act on them (so "q" closes the modal instead of quitting, etc.).
+	if m.settingsModal.Update(msg) {
+		return m, nil
+	}
 	if m.helpModal.Update(msg) {
 		return m, nil
 	}
@@ -313,62 +320,65 @@ func (m *appModel) updateBoard(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch {
-	case key.Matches(keyMsg, keyQuit):
+	case key.Matches(keyMsg, resolve("quit")):
 		return m, tea.Quit
-	case key.Matches(keyMsg, keyHelp):
+	case key.Matches(keyMsg, resolve("help")):
 		m.helpModal.Toggle()
 		return m, nil
-	case key.Matches(keyMsg, keyRefresh):
+	case key.Matches(keyMsg, resolve("settings")):
+		m.settingsModal.Toggle()
+		return m, nil
+	case key.Matches(keyMsg, resolve("refresh")):
 		return m, m.rescan(true)
-	case key.Matches(keyMsg, keySidebar):
+	case key.Matches(keyMsg, resolve("sidebar")):
 		m.sidebar = !m.sidebar
 		if !m.sidebar {
 			m.sidebarFocused = false
 		}
 		return m, nil
-	case key.Matches(keyMsg, keyLogs):
+	case key.Matches(keyMsg, resolve("logs")):
 		m.mode = modeLogs
 		return m, nil
-	case key.Matches(keyMsg, keyNewCard):
+	case key.Matches(keyMsg, resolve("new-card")):
 		return m.startInput(inputNewCard, "")
-	case key.Matches(keyMsg, keyNewColumn):
+	case key.Matches(keyMsg, resolve("new-column")):
 		return m.startInput(inputNewColumn, "")
-	case key.Matches(keyMsg, keyNewBoard):
+	case key.Matches(keyMsg, resolve("new-board")):
 		return m.startInput(inputNewBoard, "")
-	case key.Matches(keyMsg, keyRenameCard):
+	case key.Matches(keyMsg, resolve("rename-card")):
 		if card := m.currentCard(); card != nil && !m.sidebarFocused {
 			return m.startInput(inputRenameCard, card.Title)
 		}
-	case key.Matches(keyMsg, keyRenameCol):
+	case key.Matches(keyMsg, resolve("rename-column")):
 		if col := m.currentColumn(); col != nil && !m.sidebarFocused {
 			return m.startInput(inputRenameColumn, col.Name)
 		}
-	case key.Matches(keyMsg, keyDue):
+	case key.Matches(keyMsg, resolve("due")):
 		if card := m.currentCard(); card != nil && !m.sidebarFocused {
 			return m.startInput(inputDue, dueDDMM(card.Due))
 		}
-	case key.Matches(keyMsg, keyDelCard):
+	case key.Matches(keyMsg, resolve("delete-card")):
 		if card := m.currentCard(); card != nil && !m.sidebarFocused {
 			m.confirmCard = *card
 			m.confirmCol = nil
 			m.mode = modeConfirm
 		}
-	case key.Matches(keyMsg, keyDelCol):
+	case key.Matches(keyMsg, resolve("delete-column")):
 		if col := m.currentColumn(); col != nil && !m.sidebarFocused {
 			m.confirmCol = col
 			m.mode = modeConfirm
 		}
-	case key.Matches(keyMsg, keyPreview):
+	case key.Matches(keyMsg, resolve("preview")):
 		if b := m.currentBoard(); b != nil {
 			m.preview = !m.preview
 		}
-	case key.Matches(keyMsg, keyOpen):
+	case key.Matches(keyMsg, resolve("open")):
 		if m.sidebarFocused {
 			m.sidebarFocused = false
 		} else if card := m.currentCard(); card != nil {
 			return m, openEditor(card.Path)
 		}
-	case key.Matches(keyMsg, keyMoveColL):
+	case key.Matches(keyMsg, resolve("move-col-left")):
 		if m.sidebarFocused {
 			// already on the sidebar
 		} else if m.colIdx == 0 && m.sidebar {
@@ -378,22 +388,22 @@ func (m *appModel) updateBoard(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.colIdx--
 			m.cardIdx = 0
 		}
-	case key.Matches(keyMsg, keyMoveColR):
+	case key.Matches(keyMsg, resolve("move-col-right")):
 		if m.sidebarFocused {
 			m.sidebarFocused = false
 		} else if c := m.currentBoard(); c != nil && m.colIdx < len(c.Columns)-1 {
 			m.colIdx++
 			m.cardIdx = 0
 		}
-	case key.Matches(keyMsg, keyShiftCardL):
+	case key.Matches(keyMsg, resolve("shift-card-left")):
 		return m, m.moveCardBetween(-1)
-	case key.Matches(keyMsg, keyShiftCardR):
+	case key.Matches(keyMsg, resolve("shift-card-right")):
 		return m, m.moveCardBetween(1)
-	case key.Matches(keyMsg, keyReorderL):
+	case key.Matches(keyMsg, resolve("reorder-col-left")):
 		return m, m.moveColumnBetween(-1)
-	case key.Matches(keyMsg, keyReorderR):
+	case key.Matches(keyMsg, resolve("reorder-col-right")):
 		return m, m.moveColumnBetween(1)
-	case key.Matches(keyMsg, keyCardDown):
+	case key.Matches(keyMsg, resolve("card-down")):
 		if m.sidebarFocused {
 			if m.boardIdx < len(m.boards)-1 {
 				m.boardIdx++
@@ -402,7 +412,7 @@ func (m *appModel) updateBoard(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if c := m.currentColumn(); c != nil && m.cardIdx < len(c.Cards)-1 {
 			m.cardIdx++
 		}
-	case key.Matches(keyMsg, keyCardUp):
+	case key.Matches(keyMsg, resolve("card-up")):
 		if m.sidebarFocused {
 			if m.boardIdx > 0 {
 				m.boardIdx--
@@ -826,9 +836,12 @@ func (m appModel) View() string {
 
 	body := m.renderBoard(bodyHeight, innerW)
 	notice := m.renderNotice(innerW)
-	footer := tuiui.NewFooter(appKeymap...).Render(innerW, theme)
+	footer := tuiui.NewFooter(reg.Bindings()...).Render(innerW, theme)
 
 	out := lipgloss.JoinVertical(lipgloss.Left, header, body, notice, footer)
+	if m.settingsModal.Visible() {
+		return m.settingsModal.View(theme)
+	}
 	if m.helpModal.Visible() {
 		return m.helpModal.View(theme)
 	}
