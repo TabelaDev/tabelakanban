@@ -185,9 +185,12 @@ func ipcBoardsNext(boards []Board) int {
 	return tuiui.WriteJSON(nil)
 }
 
+// isDoneColumn matches a column name against the configured markers
+// ([ipc].done_column_markers). Only boards.next uses this — the TUI itself
+// has no notion of a "done" column.
 func isDoneColumn(name string) bool {
-	for _, marker := range []string{"done", "feito", "conclu"} {
-		if strings.Contains(strings.ToLower(name), marker) {
+	for _, marker := range settings.IPC.DoneColumnMarkers {
+		if strings.Contains(strings.ToLower(name), strings.ToLower(marker)) {
 			return true
 		}
 	}

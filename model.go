@@ -45,19 +45,20 @@ const (
 	// The frame has no outer margin; the header/footer's own horizontal
 	// padding keeps the text off the edges.
 	appMargin = 0
-	// Column box: 2 border + 1 title + 1 blank = 4 lines of overhead; each
-	// card block is 3 lines (title + preview + spacer).
+	// Column box: 2 border + 1 title + 1 blank = 4 lines of overhead.
 	colBoxOverhead = 4
-	cardLines      = 3
-	panelGap       = 1
 	minVisibleCols = 1
 	minVisibleRows = 3
 	// Smallest a column may shrink to before we just horizontally scroll.
 	minColWidth = 20
-	// Board sidebar width (content; border+padding add 4).
-	sidebarInnerWidth = 18
-	sidebarTotal      = sidebarInnerWidth + 4
 )
+
+// Card height, panel gap and sidebar width come from config.toml ([layout]).
+// sidebarTotal() adds the sidebar's own border+padding (4 columns) — it was a
+// derived const and has to be recomputed now that the width can change.
+func cardLines() int    { return settings.Layout.CardLines }
+func panelGap() int     { return settings.Layout.PanelGap }
+func sidebarTotal() int { return settings.Layout.SidebarWidth + 4 }
 
 // logEntry is one structured activity in the log: what happened to which
 // board/card/column, with the source → destination columns when relevant.
@@ -71,8 +72,6 @@ type logEntry struct {
 	to     string
 	detail string
 }
-
-const logCap = 200
 
 // summary is the one-line version shown in the notice line.
 func (e logEntry) summary() string {
@@ -166,13 +165,13 @@ type clearNoticeMsg struct{ gen int }
 // reserved notice line for a couple of seconds.
 func (m *appModel) notifyEntry(e logEntry) tea.Cmd {
 	m.log = append(m.log, e)
-	if len(m.log) > logCap {
-		m.log = m.log[len(m.log)-logCap:]
+	if len(m.log) > settings.Display.LogCapacity {
+		m.log = m.log[len(m.log)-settings.Display.LogCapacity:]
 	}
 	m.notice = e.summary()
 	m.noticeGen++
 	gen := m.noticeGen
-	return tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+	return tea.Tick(settings.Display.NoticeTimeout.Duration, func(time.Time) tea.Msg {
 		return clearNoticeMsg{gen: gen}
 	})
 }
@@ -758,7 +757,7 @@ func (m appModel) boardAreaWidth() int {
 func (m appModel) baseColumnsAvail() int {
 	w := m.boardAreaWidth()
 	if m.sidebar {
-		w -= sidebarTotal + panelGap
+		w -= sidebarTotal() + panelGap()
 	}
 	if w < 1 {
 		return 1
@@ -771,7 +770,7 @@ func (m appModel) baseColumnsAvail() int {
 func (m appModel) columnsAvailWidth() int {
 	w := m.baseColumnsAvail()
 	if m.preview {
-		w -= previewPanelWidth(m.boardAreaWidth()) + panelGap
+		w -= previewPanelWidth(m.boardAreaWidth()) + panelGap()
 	}
 	if w < 1 {
 		return 1
@@ -785,11 +784,11 @@ func (m appModel) visibleCols(avail int) int {
 	if avail <= 0 {
 		return 1
 	}
-	per := minColWidth + colBoxOverhead + panelGap
+	per := minColWidth + colBoxOverhead + panelGap()
 	if per <= 0 {
 		return 1
 	}
-	if v := (avail + panelGap) / per; v >= minVisibleCols {
+	if v := (avail + panelGap()) / per; v >= minVisibleCols {
 		return v
 	}
 	return minVisibleCols
@@ -814,7 +813,7 @@ func previewPanelWidth(area int) int {
 // columnInnerWidth turns "visible" columns sharing `avail` into the inner
 // content width of each (subtracting border + padding overhead).
 func columnInnerWidth(avail, visible int) int {
-	colTotal := (avail - (visible-1)*panelGap) / visible
+	colTotal := (avail - (visible-1)*panelGap()) / visible
 	inner := colTotal - colBoxOverhead
 	if inner < 10 {
 		inner = 10
@@ -887,16 +886,16 @@ func (m appModel) renderBoard(bodyHeight, innerW int) string {
 
 	colHeight := bodyHeight
 	innerColHeight := colHeight - colBoxOverhead
-	if innerColHeight < cardLines*minVisibleRows {
-		innerColHeight = cardLines * minVisibleRows
+	if innerColHeight < cardLines()*minVisibleRows {
+		innerColHeight = cardLines() * minVisibleRows
 	}
-	maxCards := innerColHeight / cardLines
+	maxCards := innerColHeight / cardLines()
 
 	columns := b.Columns
 	flat := make([]string, 0, visible*2)
 	for i := m.colScroll; i < len(columns) && len(flat) < visible*2-1; i++ {
 		if len(flat) > 0 {
-			flat = append(flat, strings.Repeat(" ", panelGap))
+			flat = append(flat, strings.Repeat(" ", panelGap()))
 		}
 		flat = append(flat, m.renderColumn(columns[i], i == m.colIdx, innerW, maxCards, innerColHeight))
 	}
@@ -904,7 +903,7 @@ func (m appModel) renderBoard(bodyHeight, innerW int) string {
 
 	if m.sidebar {
 		columnsBox = lipgloss.JoinHorizontal(lipgloss.Top,
-			m.renderSidebar(bodyHeight, sidebarInnerWidth), strings.Repeat(" ", panelGap), columnsBox)
+			m.renderSidebar(bodyHeight, settings.Layout.SidebarWidth), strings.Repeat(" ", panelGap()), columnsBox)
 	}
 
 	if showPreview {
@@ -913,7 +912,7 @@ func (m appModel) renderBoard(bodyHeight, innerW int) string {
 			card = c
 		}
 		pw := previewPanelWidth(m.boardAreaWidth())
-		columnsBox = lipgloss.JoinHorizontal(lipgloss.Top, columnsBox, strings.Repeat(" ", panelGap), m.renderPreview(card, pw, bodyHeight))
+		columnsBox = lipgloss.JoinHorizontal(lipgloss.Top, columnsBox, strings.Repeat(" ", panelGap()), m.renderPreview(card, pw, bodyHeight))
 	}
 
 	return columnsBox
@@ -927,9 +926,9 @@ func (m appModel) renderEmptyState(bodyHeight, innerW int, content string) strin
 	}
 	if m.sidebar {
 		content = padToHeight(content, bodyHeight)
-		left := m.renderSidebar(bodyHeight, sidebarInnerWidth)
-		return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", panelGap),
-			theme.Panel(false).Render(padLines(content, innerW-4-sidebarTotal-panelGap)))
+		left := m.renderSidebar(bodyHeight, settings.Layout.SidebarWidth)
+		return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", panelGap()),
+			theme.Panel(false).Render(padLines(content, innerW-4-sidebarTotal()-panelGap())))
 	}
 	content = padToHeight(content, bodyHeight)
 	return theme.Panel(false).Render(padLines(content, innerW-4))
@@ -1175,11 +1174,14 @@ func (m appModel) renderLogs() string {
 
 type editorFinishedMsg struct{}
 
-// openEditor suspends the TUI to run $EDITOR (falling back to nvim) against
-// a card's .md file, the same "jump straight into it" shortcut the other
-// TUIs use.
+// openEditor suspends the TUI to run the editor against a card's .md file,
+// the same "jump straight into it" shortcut the other TUIs use. Resolution
+// order: config.toml's [general].editor, then $EDITOR, then nvim.
 func openEditor(path string) tea.Cmd {
-	editor := os.Getenv("EDITOR")
+	editor := settings.General.Editor
+	if editor == "" {
+		editor = os.Getenv("EDITOR")
+	}
 	if editor == "" {
 		editor = "nvim"
 	}

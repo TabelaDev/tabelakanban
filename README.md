@@ -119,23 +119,49 @@ tabelakanban ipc boards.next --json                 # o card que o próprio tabe
 
 ## Configuração
 
-### Quais roots monitorar
+Tudo fica em `~/.config/tabelakanban/config.toml` (sobrescrível via
+`TABELAKANBAN_CONFIG`). O arquivo é opcional e parcial: só as chaves presentes
+sobrescrevem, o resto segue no default. `f5` recarrega sem reiniciar.
 
-`~/.config/tabelakanban/config` (padrão do `os.UserConfigDir()`; sobrescrível
-via `TABELAKANBAN_CONFIG`) lista, uma entrada por linha, as pastas cujos
-filhos são boards:
+```toml
+# Pastas cujos filhos são boards. A ordem importa: board novo nasce na 1ª.
+roots = ["~/kanban", "~/codigo/pessoal/meu-time"]
+
+[layout]
+card_lines   = 3   # altura de um card (título + preview + espaçador)
+panel_gap    = 1
+sidebar_width = 18 # conteúdo; borda e padding somam 4
+
+[display]
+notice_timeout = "2s"
+log_capacity   = 200
+
+[ipc]
+# Só o `boards.next` usa isso — a TUI não tem noção de coluna "done".
+done_column_markers = ["done", "feito", "conclu"]
+
+[general]
+editor = "nvim"  # vazio = usa $EDITOR, depois nvim
+```
+
+Sem nenhum arquivo, varre só `TABELAKANBAN_ROOT` (ou `~/kanban`).
+
+### Migrando do formato antigo
+
+A config era `~/.config/tabelakanban/config`, uma pasta por linha. **Esse
+arquivo continua sendo lido** quando não existe `config.toml`, com um aviso na
+linha de notice. A tradução é direta:
 
 ```
-~/kanban
-~/codigo/pessoal/meu-time
+~/kanban                    →  roots = ["~/kanban"]
+~/codigo/pessoal/meu-time      (as duas na mesma lista, na mesma ordem)
 ```
 
-Linhas em branco e começando com `#` são ignoradas. Sem esse arquivo, o
-comportamento é o de sempre: varre só `TABELAKANBAN_ROOT` (ou `~/kanban`).
+Criado o `config.toml`, ele passa a valer sozinho.
 
 ### Outras variáveis
 
-- `TABELAKANBAN_ROOT` — raiz varrida quando não existe o config (padrão
+- `TABELAKANBAN_ROOT` — raiz varrida quando não existe config nenhuma (padrão
   `~/kanban`).
 - `TABELAKANBAN_ACCENT` — accent Catppuccin Mocha manual, usado só quando o
   DankMaterialShell não está instalado/configurado (padrão `mauve`).

@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Config em TOML (`~/.config/tabelakanban/config.toml`), substituindo o
+  formato de uma-pasta-por-linha. Além de `roots`, agora são configuráveis a
+  altura do card, o gap entre painéis, a largura da sidebar, o timeout do
+  notice, a capacidade do log, os marcadores de coluna "done" do
+  `ipc boards.next` e o editor.
+- Tecla `f5`: recarrega config.toml e keybindings sem reiniciar.
+
+### Changed
+
+- O arquivo antigo `~/.config/tabelakanban/config` continua sendo lido quando
+  não existe `config.toml`, com um aviso apontando pro caminho novo.
+
 ## [v0.2.0] - 2026-08-06
 
 ### Added
