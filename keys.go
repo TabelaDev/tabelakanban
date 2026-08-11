@@ -19,6 +19,7 @@ func init() {
 		tuiui.Action{ID: "help", Help: "keybindings", Keys: []string{"?"}},
 		tuiui.Action{ID: "settings", Help: "rebind keys", Keys: []string{","}},
 		tuiui.Action{ID: "refresh", Help: "recarregar", Keys: []string{"ctrl+r"}},
+		tuiui.Action{ID: "reload", Help: "recarregar config", Keys: []string{"f5"}},
 		tuiui.Action{ID: "sidebar", Help: "sidebar", Keys: []string{"ctrl+e"}},
 		tuiui.Action{ID: "logs", Help: "logs", Keys: []string{"g"}},
 		tuiui.Action{ID: "new-card", Help: "novo card", Keys: []string{"n"}},

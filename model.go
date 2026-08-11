@@ -330,6 +330,17 @@ func (m *appModel) updateBoard(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(keyMsg, resolve("refresh")):
 		return m, m.rescan(true)
+	case key.Matches(keyMsg, resolve("reload")):
+		// Config-file-first: an external edit to keybindings.json takes effect
+		// here, without restarting.
+		changed, err := reg.Reload()
+		switch {
+		case err != nil:
+			return m, m.logError("keybindings: " + err.Error())
+		case changed:
+			return m, m.logInfo("keybindings recarregadas")
+		}
+		return m, m.logInfo("config sem mudanças")
 	case key.Matches(keyMsg, resolve("sidebar")):
 		m.sidebar = !m.sidebar
 		if !m.sidebar {
