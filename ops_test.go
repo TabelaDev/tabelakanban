@@ -253,3 +253,59 @@ func TestSetCardDue(t *testing.T) {
 		t.Fatalf("due not cleared: %q", raw)
 	}
 }
+
+func TestUpdateCardBody(t *testing.T) {
+	board := setupTestBoard(t)
+	card, err := createCard(board.Columns[0], "tarefa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	due := time.Date(2026, 8, 20, 0, 0, 0, 0, time.Local)
+	if card, err = setCardDue(card, due); err != nil {
+		t.Fatal(err)
+	}
+
+	newBody := "# tarefa\n\nProgresso novo do digest.\n"
+	updated, err := updateCardBody(card, newBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(updated.Path)
+	if !strings.Contains(string(raw), "due: 2026-08-20") {
+		t.Fatalf("due lost on body update: %q", raw)
+	}
+	if !strings.Contains(string(raw), "Progresso novo do digest.") {
+		t.Fatalf("new body not written: %q", raw)
+	}
+
+	scanned, err := scanBoard(board.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := scanned.Columns[0].Cards[0]
+	if sc.Body != newBody {
+		t.Fatalf("rescanned body = %q, want %q", sc.Body, newBody)
+	}
+	if got := sc.Due.Format("2006-01-02"); got != "2026-08-20" {
+		t.Fatalf("rescanned due = %s", got)
+	}
+}
+
+func TestUpdateCardBodyKeepsFrontMatterWhenNone(t *testing.T) {
+	board := setupTestBoard(t)
+	card, err := createCard(board.Columns[0], "sem-due")
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := updateCardBody(card, "# sem-due\n\nsó corpo\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(updated.Path)
+	if strings.Contains(string(raw), "---") {
+		t.Fatalf("front matter invented for a card without due: %q", raw)
+	}
+	if !strings.Contains(string(raw), "só corpo") {
+		t.Fatalf("body not written: %q", raw)
+	}
+}

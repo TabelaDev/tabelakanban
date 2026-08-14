@@ -113,7 +113,15 @@ coisa está" sem abrir a TUI, `tabelakanban` expõe o mesmo subcomando
 tabelakanban ipc boards.list --json                 # todos os boards, colunas e cards
 tabelakanban ipc boards.list name=exemplo --json    # só um board
 tabelakanban ipc boards.next --json                 # o card que o próprio tabelakanban priorizaria
+tabelakanban ipc cards.create board=exemplo column=a-fazer title=nova --json
+tabelakanban ipc cards.move board=exemplo from=a-fazer to=feito title=nova --json
+tabelakanban ipc cards.update board=exemplo column=feito title=nova 'body=...' --json
 ```
+
+`cards.update` substitui o body de um card (o front-matter de `due` sobrevive)
+— a contraparte de escrita do `cards.create`/`cards.move`, pra um editor
+externo (o digest do tabelaradar) anexar notas de progresso ou reescrever um
+checklist.
 
 `boards.next` devolve o primeiro card da primeira coluna que não parece
 "done" (por nome: `done`, `feito`, `conclu...`) — no mesmo espírito do

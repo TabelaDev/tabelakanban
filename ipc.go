@@ -79,6 +79,8 @@ func runIPC(args []string) int {
 		return ipcBoardsNext(boards)
 	case "cards.create":
 		return ipcCardsCreate(boards, parsed.Filters)
+	case "cards.update":
+		return ipcCardsUpdate(boards, parsed.Filters)
 	case "cards.move":
 		return ipcCardsMove(boards, parsed.Filters)
 	default:
@@ -121,6 +123,29 @@ func ipcCardsCreate(boards []Board, filters map[string]string) int {
 		return 1
 	}
 	return tuiui.WriteJSON(cardJSON{Title: card.Title, Path: card.Path, Body: card.Body})
+}
+
+// ipcCardsUpdate replaces a card's body, keeping its due-date front matter.
+// Filters: board=, column=, title=, body=.
+func ipcCardsUpdate(boards []Board, filters map[string]string) int {
+	_, col, ferr := findColumn(boards, filters["board"], filters["column"])
+	if ferr != "" {
+		fmt.Fprintln(os.Stderr, "erro:", ferr)
+		return 1
+	}
+	title := filters["title"]
+	for i := range col.Cards {
+		if col.Cards[i].Title == title {
+			updated, err := updateCardBody(col.Cards[i], filters["body"])
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "erro:", err)
+				return 1
+			}
+			return tuiui.WriteJSON(cardJSON{Title: updated.Title, Path: updated.Path, Body: updated.Body})
+		}
+	}
+	fmt.Fprintf(os.Stderr, "erro: card %q não existe na coluna %q do board %q\n", title, col.Name, filters["board"])
+	return 1
 }
 
 // ipcCardsMove moves a card to another column and prints it as JSON.

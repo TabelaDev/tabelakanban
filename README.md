@@ -113,7 +113,14 @@ thing in" without opening the TUI, `tabelakanban` exposes the same
 tabelakanban ipc boards.list --json                 # every board, column and card
 tabelakanban ipc boards.list name=exemplo --json    # a single board
 tabelakanban ipc boards.next --json                 # the card tabelakanban itself would prioritise
+tabelakanban ipc cards.create board=exemplo column=a-fazer title=nova --json
+tabelakanban ipc cards.move board=exemplo from=a-fazer to=feito title=nova --json
+tabelakanban ipc cards.update board=exemplo column=feito title=nova 'body=...' --json
 ```
+
+`cards.update` replaces a card's body (its `due:` front matter survives) — the
+write counterpart to `cards.create`/`cards.move`, for an external editor (the
+tabelaradar digest) to append progress notes or rewrite a checklist.
 
 `boards.next` returns the first card of the first column that does not look
 "done" (by name: `done`, `feito`, `conclu...`) — in the same spirit as
